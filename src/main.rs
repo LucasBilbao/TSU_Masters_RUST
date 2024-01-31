@@ -1,84 +1,143 @@
-use std::io::stdin;
+use std::fmt;
+
+struct AppInfo {
+    app_st_addr: u32,
+    app_blk_count: u32,
+    page_count: u32,
+    pg_per_blk: Vec<u32>,
+    offset: u32,
+}
+
+impl AppInfo {
+    fn new(
+        app_size: u32,
+        st_addr_option: Option<u32>,
+        p_count_option: Option<u32>,
+        p_size_option: Option<u32>,
+    ) -> Self {
+        let st_addr = st_addr_option.unwrap_or(0);
+        let p_count = p_count_option.unwrap_or(1024);
+        let p_size = p_size_option.unwrap_or(4096);
+        let app_st_addr = st_addr;
+        let offset = if app_size % p_size == 0 {
+            4095
+        } else {
+            app_size % p_size
+        };
+
+        let (app_blk_count, page_count, pg_per_blk) = if app_size < p_size {
+            (1, 1, vec![1])
+        } else if app_size < p_count * p_size {
+            let page_count = (app_size / p_size) + 1;
+            let tmp = p_count - st_addr / p_size;
+
+            if page_count < tmp {
+                (1, page_count, vec![page_count])
+            } else {
+                let app_blk_count = 2;
+                let mut pg_per_blk = vec![0; app_blk_count as usize];
+
+                pg_per_blk[0] = tmp;
+                pg_per_blk[1] = page_count - tmp;
+
+                (app_blk_count, page_count, pg_per_blk)
+            }
+        } else {
+            let page_count = (app_size / p_size) + 1;
+            let fblock = p_count - ((st_addr / p_size) % p_count);
+            let lblock = (page_count - fblock) % p_count;
+            let fullblocks = (page_count - fblock - lblock) / p_count;
+            let mut size = fullblocks;
+
+            if fblock != 0 {
+                size += 1;
+            }
+            if lblock != 0 {
+                size += 1;
+            }
+
+            let app_blk_count = size;
+            let mut pg_per_blk = vec![0; size as usize];
+
+            let mut i = 0;
+            if fblock > 0 {
+                pg_per_blk[0] = fblock;
+                i += 1;
+            }
+            if lblock != 0 {
+                pg_per_blk[size as usize - 1] = lblock;
+            }
+            for j in i..size as usize {
+                pg_per_blk[j] = p_count;
+            }
+
+            (app_blk_count, page_count, pg_per_blk)
+        };
+
+        AppInfo {
+            app_st_addr,
+            app_blk_count,
+            page_count,
+            pg_per_blk,
+            offset,
+        }
+    }
+
+    fn next_address(&self, p_size_option: Option<u32>) -> u32 {
+        let p_size = p_size_option.unwrap_or(4096_u32);
+        self.app_st_addr + self.page_count * p_size
+    }
+}
+
+impl fmt::Display for AppInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "\n=========================================\n")?;
+        write!(
+            f,
+            "The memory was allocated from the address: {}\n",
+            self.app_st_addr
+        )?;
+        write!(f, "       Application Info : ")?;
+        write!(f, "\n\t     Allocated Blocks : {}", self.app_blk_count)?;
+        write!(f, "\n\t      Allocated Pages : {}", self.page_count)?;
+        write!(f, "\n\t               Offset : {}", self.offset)?;
+        write!(
+            f,
+            "\n\t         Last Address : {}",
+            self.next_address(None) - 1
+        )?;
+        write!(f, "\n\t Pages in first Block : {}", self.pg_per_blk[0])?;
+        write!(
+            f,
+            "\n\t Pages in  last Block : {}",
+            self.pg_per_blk[self.app_blk_count as usize - 1]
+        )?;
+        if self.app_blk_count > 2 {
+            write!(
+                f,
+                "\n\t  Fully allocated are : {} (Blocks)",
+                self.app_blk_count - 2
+            )?;
+        }
+        write!(
+            f,
+            "\n\tAllocated Memory size : {} (Bytes)\n",
+            self.next_address(None) - self.app_st_addr
+        )
+    }
+}
 
 fn main() {
-    println!("\n");
+    #[warn(unused_mut)]
+    let mut addr = 0;
+    let app1 = AppInfo::new(1059800, Some(addr), None, None);
+    println!("{}", app1);
 
-    // 1.
-    let mut x = String::new();
-    println!("1. Please enter a number of type `u32` to calculate f_x when x =");
-    stdin().read_line(&mut x).expect("Didn't Receive Input");
-    match x.trim().parse() {
-        Ok(k) => println!("x = {}; f_x = {}", k, f_x(k)),
-        Err(_) => panic!("\n\n\tThere was an error parsing the number you entered for x !!!\n\n")
-    } 
-    
-    println!("\n-------------------------------------\n");
-    
-    // 2.
-    let mut n = String::new();
-    println!("2. Please enter a number of type `u64` to calculate f_n when n =");
-    stdin().read_line(&mut n).expect("Didn't Receive Input");
-    match n.trim().parse() {
-        Ok(k) => println!("n = {}; f_n = {}", k, f_n(k)),
-        Err(_) => panic!("\n\n\tThere was an error parsing the number you entered for n !!!\n\n")
-    }
+    addr = app1.next_address(None);
+    let app2 = AppInfo::new(5050097, Some(addr), None, None);
+    println!("{}", app2);
 
-    println!("\n-------------------------------------\n");
-
-    // 3.
-    let mut m: u64 = 0;
-    for i in 1_u64..{
-        if calc_pi(&(i + 1)) - calc_pi(&i) >= 10_f64.powf(-8_f64) {
-            continue;
-        }
-
-        m = i;
-        break;
-    }
-
-    println!("3. The n and (n+1) for which the 2 neighbouring PIs' difference is less than 10^(-8) are:");
-    println!("\tn = {}; PI(n) = {:.11}", m, calc_pi(&m));
-    println!("\tn+1 = {}; PI(n+1) = {:.11}", m+1, calc_pi(&(m + 1)));
-    println!("\tPI(n+1) - PI(n) = {:.11}", calc_pi(&(m + 1)) - calc_pi(&m));
-
-    println!("\n")
-}
-
-
-fn f_x(x: u32) -> f32 {
-    let x_f32 = x as f32;
-    if x_f32 < 1_f32 {
-        return x_f32.powf(2_f32) * (x_f32.powf(6_f32) + x_f32.sin()).powf(x_f32);
-    }
-
-    let exp = (1_f32).exp();
-    
-    if x_f32 > 1_f32 {
-        return (x_f32.powf(6_f32) + x_f32.sin()) * (x_f32.powf(2_f32) + 1_f32).log(exp); 
-    }
-
-    (1_f32 + x_f32.sin().powf(2_f32)).log(exp)
-}
-
-fn f_n(n: u64) -> f32 {
-    let mut sum: f32 = 0_f32;
-
-    for i in 1..=n {
-        let i_f32 = i as f32;
-        sum += (2_f32 + i_f32).cos() + i_f32.powf(2_f32);
-    }
-
-    sum
-}
-
-
-fn calc_pi(n: & u64) -> f64 {
-    let mut sum: f64 = 0_f64;
-
-    for i in 1..=*n {
-        let i_f64 = i as f64;
-        sum += 4_f64 / ((2_f64 * i_f64) * (2_f64 * i_f64 + 1_f64) * (2_f64 * i_f64 + 2_f64));
-    }
-
-    3_f64 + sum
+    addr = app2.next_address(None);
+    let app3 = AppInfo::new(41004305, Some(addr), None, None);
+    println!("{}", app3);
 }
