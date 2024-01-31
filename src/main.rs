@@ -1,6 +1,7 @@
 use std::fs;
 use std::io::stdin;
 
+#[allow(dead_code)]
 struct Subject {
     subject_name: String,
     grade: u16,
@@ -104,7 +105,7 @@ fn main() {
             / num_of_subjects as f32
             * 0.25;
         println!(
-            "\t\t{}: {} {}, GPA: {:.2}",
+            "\t\t{}) {} {}, GPA: {:.2}",
             i + 1,
             passed_students[i].last_name,
             passed_students[i].first_name,
