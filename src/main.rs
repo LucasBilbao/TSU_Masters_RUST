@@ -1,3 +1,4 @@
+use rand::Rng;
 use std::fmt;
 
 struct AppInfo {
@@ -6,6 +7,7 @@ struct AppInfo {
     page_count: u32,
     pg_per_blk: Vec<u32>,
     offset: u32,
+    unused_mem: u32,
 }
 
 impl AppInfo {
@@ -24,12 +26,13 @@ impl AppInfo {
         } else {
             app_size % p_size
         };
+        let unused_mem = if offset == 4095 { 0 } else { 4096 - offset };
 
         let (app_blk_count, page_count, pg_per_blk) = if app_size < p_size {
             (1, 1, vec![1])
         } else if app_size < p_count * p_size {
             let page_count = (app_size / p_size) + 1;
-            let tmp = p_count - st_addr / p_size;
+            let tmp = p_count - app_size / p_size;
 
             if page_count < tmp {
                 (1, page_count, vec![page_count])
@@ -80,6 +83,7 @@ impl AppInfo {
             page_count,
             pg_per_blk,
             offset,
+            unused_mem,
         }
     }
 
@@ -130,14 +134,41 @@ impl fmt::Display for AppInfo {
 fn main() {
     #[warn(unused_mut)]
     let mut addr = 0;
-    let app1 = AppInfo::new(1059800, Some(addr), None, None);
-    println!("{}", app1);
+    let mut rng = rand::thread_rng();
+    let apps: &mut Vec<AppInfo> = &mut vec![];
 
-    addr = app1.next_address(None);
-    let app2 = AppInfo::new(5050097, Some(addr), None, None);
-    println!("{}", app2);
+    // 1.
+    for _ in 1..=10 {
+        let app_size = rng.gen_range(1000000..10000000);
+        let new_app = AppInfo::new(app_size, Some(addr), None, None);
+        addr = new_app.next_address(None);
+        apps.push(new_app);
+    }
 
-    addr = app2.next_address(None);
-    let app3 = AppInfo::new(41004305, Some(addr), None, None);
-    println!("{}", app3);
+    // 2.
+    let mut rand_index = rng.gen_range(0..apps.len());
+    println!("{}", apps[rand_index]);
+
+    loop {
+        let new_rand_index = rng.gen_range(0..apps.len());
+        if new_rand_index != rand_index {
+            rand_index = new_rand_index;
+            break;
+        }
+    }
+    println!("{}", apps[rand_index]);
+
+    println!("-----------------------------------------------------------");
+
+    // 3.
+    let mut unused_mem_total = 0;
+
+    for app in apps {
+        unused_mem_total += app.unused_mem;
+    }
+
+    println!(
+        "The total of the unused memory is {} bytes\n\n",
+        unused_mem_total
+    )
 }
