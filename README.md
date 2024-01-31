@@ -1,7 +1,5 @@
-# ამ დავალებების იმპლემენტაცია rust პროგრამულ ენაზე
+# [DAVALEBA 1](https://github.com/LucasBilbao/TSU_Masters_RUST/tree/davaleba%231)
 
-![image with the homework tasks described on it](./assets/homework.png)
+# [DAVALEBA 2](https://github.com/LucasBilbao/TSU_Masters_RUST/tree/davaleba%232)
 
-## გაშვებისას მიღებული შედეგი
-
-![image with the results of running the code](./assets/results.png)
+# [DAVALEBA 3](https://github.com/LucasBilbao/TSU_Masters_RUST/tree/davalepa%233)
