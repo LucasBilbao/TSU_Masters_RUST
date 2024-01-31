@@ -1,174 +1,114 @@
-use rand::Rng;
-use std::fmt;
+use std::fs;
+use std::io::stdin;
 
-struct AppInfo {
-    app_st_addr: u32,
-    app_blk_count: u32,
-    page_count: u32,
-    pg_per_blk: Vec<u32>,
-    offset: u32,
-    unused_mem: u32,
+struct Subject {
+    subject_name: String,
+    grade: u16,
+}
+struct Student {
+    first_name: String,
+    last_name: String,
+    subjects: Vec<Subject>,
 }
 
-impl AppInfo {
-    fn new(
-        app_size: u32,
-        st_addr_option: Option<u32>,
-        p_count_option: Option<u32>,
-        p_size_option: Option<u32>,
-    ) -> Self {
-        let st_addr = st_addr_option.unwrap_or(0);
-        let p_count = p_count_option.unwrap_or(1024);
-        let p_size = p_size_option.unwrap_or(4096);
-        let app_st_addr = st_addr;
-        let offset = if app_size % p_size == 0 {
-            4095
-        } else {
-            app_size % p_size
-        };
-        let unused_mem = if offset == 4095 { 0 } else { 4096 - offset };
-
-        let (app_blk_count, page_count, pg_per_blk) = if app_size < p_size {
-            (1, 1, vec![1])
-        } else if app_size < p_count * p_size {
-            let page_count = (app_size / p_size) + 1;
-            let tmp = p_count - app_size / p_size;
-
-            if page_count < tmp {
-                (1, page_count, vec![page_count])
-            } else {
-                let app_blk_count = 2;
-                let mut pg_per_blk = vec![0; app_blk_count as usize];
-
-                pg_per_blk[0] = tmp;
-                pg_per_blk[1] = page_count - tmp;
-
-                (app_blk_count, page_count, pg_per_blk)
-            }
-        } else {
-            let page_count = (app_size / p_size) + 1;
-            let fblock = p_count - ((st_addr / p_size) % p_count);
-            let lblock = (page_count - fblock) % p_count;
-            let fullblocks = (page_count - fblock - lblock) / p_count;
-            let mut size = fullblocks;
-
-            if fblock != 0 {
-                size += 1;
-            }
-            if lblock != 0 {
-                size += 1;
-            }
-
-            let app_blk_count = size;
-            let mut pg_per_blk = vec![0; size as usize];
-
-            let mut i = 0;
-            if fblock > 0 {
-                pg_per_blk[0] = fblock;
-                i += 1;
-            }
-            if lblock != 0 {
-                pg_per_blk[size as usize - 1] = lblock;
-            }
-            for j in i..size as usize {
-                pg_per_blk[j] = p_count;
-            }
-
-            (app_blk_count, page_count, pg_per_blk)
-        };
-
-        AppInfo {
-            app_st_addr,
-            app_blk_count,
-            page_count,
-            pg_per_blk,
-            offset,
-            unused_mem,
+impl Student {
+    fn new(first_name: String, last_name: String, subjects: Vec<Subject>) -> Student {
+        Student {
+            last_name,
+            first_name,
+            subjects,
         }
     }
 
-    fn next_address(&self, p_size_option: Option<u32>) -> u32 {
-        let p_size = p_size_option.unwrap_or(4096_u32);
-        self.app_st_addr + self.page_count * p_size
+    fn students_that_passed_n_subjects(students: &mut Vec<Student>, n: usize) -> Vec<&mut Student> {
+        students
+            .into_iter()
+            .filter(|student| {
+                student
+                    .subjects
+                    .iter()
+                    .filter(
+                        |Subject {
+                             subject_name: _,
+                             grade,
+                         }| *grade >= 51,
+                    )
+                    .collect::<Vec<&Subject>>()
+                    .len()
+                    == n
+            })
+            .collect::<Vec<&mut Student>>()
     }
-}
 
-impl fmt::Display for AppInfo {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "\n=========================================\n")?;
-        write!(
-            f,
-            "The memory was allocated from the address: {}\n",
-            self.app_st_addr
-        )?;
-        write!(f, "       Application Info : ")?;
-        write!(f, "\n\t     Allocated Blocks : {}", self.app_blk_count)?;
-        write!(f, "\n\t      Allocated Pages : {}", self.page_count)?;
-        write!(f, "\n\t               Offset : {}", self.offset)?;
-        write!(
-            f,
-            "\n\t         Last Address : {}",
-            self.next_address(None) - 1
-        )?;
-        write!(f, "\n\t Pages in first Block : {}", self.pg_per_blk[0])?;
-        write!(
-            f,
-            "\n\t Pages in  last Block : {}",
-            self.pg_per_blk[self.app_blk_count as usize - 1]
-        )?;
-        if self.app_blk_count > 2 {
-            write!(
-                f,
-                "\n\t  Fully allocated are : {} (Blocks)",
-                self.app_blk_count - 2
-            )?;
-        }
-        write!(
-            f,
-            "\n\tAllocated Memory size : {} (Bytes)\n",
-            self.next_address(None) - self.app_st_addr
-        )
+    fn from_string(str: &str, separator: &str) -> Student {
+        let info: Vec<&str> = str.split(separator).collect();
+
+        let last_name = info[0].to_string();
+        let first_name = info[1].to_string();
+
+        let subjects: Vec<Subject> = info[2..]
+            .iter()
+            .map(|subject| {
+                let subject_info: Vec<&str> = subject.split(':').collect();
+                let subject_name = subject_info[0].to_string();
+                let grade = subject_info[1].parse().unwrap_or(0) as u16;
+                Subject {
+                    subject_name,
+                    grade,
+                }
+            })
+            .collect();
+
+        Student::new(first_name, last_name, subjects)
     }
 }
 
 fn main() {
-    #[warn(unused_mut)]
-    let mut addr = 0;
-    let mut rng = rand::thread_rng();
-    let apps: &mut Vec<AppInfo> = &mut vec![];
+    let file_content =
+        fs::read_to_string("rust_data.txt").expect("Run into trouble while reading file");
 
-    // 1.
-    for _ in 1..=10 {
-        let app_size = rng.gen_range(1000000..10000000);
-        let new_app = AppInfo::new(app_size, Some(addr), None, None);
-        addr = new_app.next_address(None);
-        apps.push(new_app);
+    let students: &mut Vec<Student> = &mut vec![];
+
+    for line in file_content.lines() {
+        students.push(Student::from_string(line, "#"))
     }
 
-    // 2.
-    let mut rand_index = rng.gen_range(0..apps.len());
-    println!("{}", apps[rand_index]);
-
-    loop {
-        let new_rand_index = rng.gen_range(0..apps.len());
-        if new_rand_index != rand_index {
-            rand_index = new_rand_index;
-            break;
+    let passed_students;
+    let mut n = String::new();
+    println!("Please enter the number of subject that the student needs to have passed: ");
+    stdin().read_line(&mut n).expect("Didn't Receive Input");
+    let num_of_subjects = match n.trim().parse() {
+        Ok(k) => {
+            passed_students = Student::students_that_passed_n_subjects(students, k);
+            k
         }
-    }
-    println!("{}", apps[rand_index]);
-
-    println!("-----------------------------------------------------------");
-
-    // 3.
-    let mut unused_mem_total = 0;
-
-    for app in apps {
-        unused_mem_total += app.unused_mem;
-    }
+        Err(_) => panic!("\n\n\tThere was an error parsing the number you entered for n !!!\n\n"),
+    };
 
     println!(
-        "The total of the unused memory is {} bytes\n\n",
-        unused_mem_total
-    )
+        "\tThe students that have passed {} subjects\n",
+        num_of_subjects
+    );
+
+    for i in 0..passed_students.len() {
+        let gpa: f32 = passed_students[i]
+            .subjects
+            .iter()
+            .map(
+                |Subject {
+                     subject_name: _,
+                     grade,
+                 }| *grade,
+            )
+            .sum::<u16>() as f32
+            / num_of_subjects as f32
+            * 0.25;
+        println!(
+            "\t\t{}: {} {}, GPA: {:.2}",
+            i + 1,
+            passed_students[i].last_name,
+            passed_students[i].first_name,
+            gpa
+        );
+    }
 }
